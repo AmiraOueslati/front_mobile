@@ -16,7 +16,7 @@ interface ApiService {
     @GET("products/all") // Si vos produits sont accessibles via '/products/all'
     suspend fun getAllProducts(): List<Product>
 
-    @POST("products/create") // Si l'endpoint est '/products/create'
+    @POST("products") // Si l'endpoint est '/products/create'
     suspend fun createProduct(@Body product: Product): Response<Unit>
 
     @POST("api/users/signup")

@@ -2,7 +2,6 @@ package com.example.myapplication11.view
 
 import ProductUiState
 import ProductViewModel
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,7 +22,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,6 +31,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,36 +51,32 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
-import coil.compose.rememberImagePainter
+import coil.compose.AsyncImage
 import com.example.myapplication11.models.Product
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(navController: NavHostController) {
     val productViewModel: ProductViewModel = viewModel()
-
-
-    // Collecte l'état de l'UI à partir du ViewModel
     val uiState by productViewModel.uiState.collectAsState()
-
-    // Définir l'état pour la recherche
     var query by remember { mutableStateOf("") }
 
-    // Déclenche la récupération des produits lors de la première composition
     LaunchedEffect(Unit) {
         productViewModel.fetchProducts()
     }
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
+            TopAppBar(
                 title = { Text("Your move makes someone's life better") },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                colors = TopAppBarDefaults.smallTopAppBarColors(
                     containerColor = Color(0xFF1976D2)
                 )
             )
         },
-        bottomBar = { BottomNavigationBar() },
+        bottomBar = {
+            BottomNavigationBar(navController = navController)
+        },
         content = { paddingValues ->
             Column(
                 modifier = Modifier
@@ -89,7 +85,6 @@ fun HomeScreen(navController: NavHostController) {
                     .verticalScroll(rememberScrollState())
             ) {
                 GreetingSection()
-                // Passer les paramètres nécessaires pour la barre de recherche
                 SearchBar(query = query, onQueryChange = { query = it }, onSearch = { /* logiques de recherche ici */ })
                 CategorySection()
                 ProductSection(uiState)
@@ -98,6 +93,38 @@ fun HomeScreen(navController: NavHostController) {
     )
 }
 
+@Composable
+fun BottomNavigationBar(navController: NavHostController) {
+    NavigationBar(
+        containerColor = Color(0xFF1976D2),
+        contentColor = Color.Black
+    ) {
+        NavigationBarItem(
+            icon = { Icon(Icons.Filled.Home, contentDescription = "Home") },
+            label = { Text("Home") },
+            selected = true,
+            onClick = {}
+        )
+        NavigationBarItem(
+            icon = { Icon(Icons.Filled.Add, contentDescription = "Create") },
+            label = { Text("Create") },
+            selected = false,
+            onClick = { navController.navigate("addImageScreen") } // Naviguer vers l'écran de création
+        )
+        NavigationBarItem(
+            icon = { Icon(Icons.Filled.Search, contentDescription = "Explore") },
+            label = { Text("Explore") },
+            selected = false,
+            onClick = {}
+        )
+        NavigationBarItem(
+            icon = { Icon(Icons.Filled.Person, contentDescription = "Profile") },
+            label = { Text("Profile") },
+            selected = false,
+            onClick = {}
+        )
+    }
+}
 @Composable
 fun GreetingSection() {
     Text(
@@ -165,38 +192,6 @@ fun CategoryCard(text: String, color: Color, modifier: Modifier = Modifier) {
     }
 }
 
-@Composable
-fun BottomNavigationBar() {
-    NavigationBar(
-        containerColor = Color(0xFF1976D2),
-        contentColor = Color.Black
-    ) {
-        NavigationBarItem(
-            icon = { Icon(Icons.Filled.Home, contentDescription = "Home") },
-            label = { Text("Home") },
-            selected = true,
-            onClick = {}
-        )
-        NavigationBarItem(
-            icon = { Icon(Icons.Filled.Add, contentDescription = "Create") },
-            label = { Text("Create") },
-            selected = false,
-            onClick = {}
-        )
-        NavigationBarItem(
-            icon = { Icon(Icons.Filled.Search, contentDescription = "Explore") },
-            label = { Text("Explore") },
-            selected = false,
-            onClick = {}
-        )
-        NavigationBarItem(
-            icon = { Icon(Icons.Filled.Person, contentDescription = "Profile") },
-            label = { Text("Profile") },
-            selected = false,
-            onClick = {}
-        )
-    }
-}
 
 @Composable
 fun ProductSection(uiState: ProductUiState) {
@@ -224,10 +219,10 @@ fun ProductSection(uiState: ProductUiState) {
                 fontSize = 20.sp
             )
         }
-
         else -> {}
     }
 }
+
 
 @Composable
 fun ProductCard(product: Product) {
@@ -238,21 +233,22 @@ fun ProductCard(product: Product) {
             .fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
+    ){
         Column(modifier = Modifier.padding(16.dp)) {
-            product.image?.let { imageUrl ->
-                Image(
-                    painter = rememberImagePainter(data = imageUrl),
+            product.imageUrl?.let { imageUrl ->
+                AsyncImage(
+                    model = "http://192.168.103.72:8080${imageUrl}", // Ajoutez le préfixe complet
                     contentDescription = "Product Image",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(180.dp)
+                        .height(180.dp),
+                    contentScale = ContentScale.Crop
                 )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            product.nom?.let {
+            product.name?.let {
                 Text(text = it, fontWeight = FontWeight.Bold, fontSize = 18.sp)
             }
 
@@ -263,7 +259,7 @@ fun ProductCard(product: Product) {
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Price: ${product.prix} USD",
+                text = "Location: ${product.location} ",
                 fontSize = 16.sp,
                 color = Color.Gray
             )

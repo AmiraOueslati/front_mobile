@@ -1,5 +1,6 @@
 package com.example.myapplication11.view
 
+import AddImageScreen
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -53,9 +54,16 @@ fun AppNavigation() {
     NavHost(navController = navController, startDestination = "loginScreen") {
         composable("loginScreen") { LoginScreen(navController) }
         composable("signUpScreen") { SignUpScreen(navController) }
-        composable("homeScreen") { HomeScreen(navController) }
-
-
+        composable("homeScreen") {
+            HomeScreen(navController)
+        }
+        composable("welcomeScreen") { WelcomeScreen(navController) }
+        composable("addImageScreen") {
+            AddImageScreen(onSubmit = {
+                // Gérer la soumission ici (par exemple, retourner à la page d'accueil après soumission)
+                navController.navigate("homeScreen")
+            })
+        }
     }
 }
 @Composable
@@ -172,7 +180,7 @@ fun LoginScreen(navController: NavController) {
                                 }
 
                                 // Navigation vers HomeScreen après une authentification réussie
-                                navController.navigate("homeScreen")
+                                navController.navigate("welcomeScreen")
                             } else {
                                 // Si l'authentification échoue
                                 errorMessage.value = when (response.code()) {
