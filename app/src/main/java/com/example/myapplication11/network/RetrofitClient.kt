@@ -13,7 +13,7 @@ val okHttpClient = OkHttpClient.Builder()
 object RetrofitClient {
     private val retrofit: Retrofit by lazy {
         Retrofit.Builder()
-            .baseUrl("http://192.168.103.72:8080/") // Assurez-vous que cette URL est correcte
+            .baseUrl("http://192.168.1.145:8080/") // Assurez-vous que cette URL est correcte
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }

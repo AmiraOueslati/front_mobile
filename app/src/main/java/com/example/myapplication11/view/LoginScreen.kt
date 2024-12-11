@@ -1,6 +1,7 @@
 package com.example.myapplication11.view
 
 import AddImageScreen
+import ProductViewModel
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -35,6 +36,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -51,21 +53,34 @@ import kotlinx.coroutines.launch
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
+
     NavHost(navController = navController, startDestination = "loginScreen") {
         composable("loginScreen") { LoginScreen(navController) }
         composable("signUpScreen") { SignUpScreen(navController) }
-        composable("homeScreen") {
-            HomeScreen(navController)
-        }
+        composable("homeScreen") { HomeScreen(navController) }
         composable("welcomeScreen") { WelcomeScreen(navController) }
+
+        // Passer le viewModel à AddImageScreen sans Hilt
         composable("addImageScreen") {
-            AddImageScreen(onSubmit = {
-                // Gérer la soumission ici (par exemple, retourner à la page d'accueil après soumission)
-                navController.navigate("homeScreen")
-            })
+            // Récupérer le viewModel avec viewModel() sans Hilt
+            val viewModel: ProductViewModel = viewModel() // Utiliser viewModel() au lieu de hiltViewModel()
+
+            AddImageScreen(
+                viewModel = viewModel, // Passer le viewModel au composable
+                onSubmit = {
+                    // Gérer la soumission ici (par exemple, retourner à la page d'accueil après soumission)
+                    navController.navigate("homeScreen") {
+                        // Optionnel : fermer les autres écrans ou revenir en arrière si nécessaire
+                        popUpTo("addImageScreen") { inclusive = true }
+                    }
+                }
+            )
         }
     }
 }
+
+
+
 @Composable
 fun LoginScreen(navController: NavController) {
     val passwordVisibility = remember { mutableStateOf(false) }

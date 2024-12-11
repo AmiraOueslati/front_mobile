@@ -1,10 +1,9 @@
-
-
-import android.Manifest
 import android.app.Activity
+import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -28,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,23 +37,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import coil.compose.rememberAsyncImagePainter
-import com.example.myapplication11.models.Product
-import com.example.myapplication11.network.RetrofitClient
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import java.io.InputStream
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddImageScreen(onSubmit: () -> Unit) {
+fun AddImageScreen(
+    viewModel: ProductViewModel, // Pass the ViewModel as a parameter
+    onSubmit: () -> Unit
+) {
     var name by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var location by remember { mutableStateOf("") }
@@ -62,79 +63,71 @@ fun AddImageScreen(onSubmit: () -> Unit) {
     var selectedCategory by remember { mutableStateOf("") }
     var expanded by remember { mutableStateOf(false) }
 
-    // Pour la gestion des erreurs et du chargement
+    // For error and loading state handling
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val categories = listOf("Clothes", "Education", "Humanity")
 
-    // Vérification des permissions pour accéder au stockage externe
     val context = LocalContext.current
     val activity = context as Activity
     val permissionGranted = ContextCompat.checkSelfPermission(
         context,
-        Manifest.permission.READ_EXTERNAL_STORAGE
+        android.Manifest.permission.READ_EXTERNAL_STORAGE
     ) == PackageManager.PERMISSION_GRANTED
 
+    // Request permission if not granted
     if (!permissionGranted) {
         ActivityCompat.requestPermissions(
             activity,
-            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE),
-            1001 // Code de requête pour la permission
+            arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE),
+            1001 // Permission request code
         )
     }
 
-    // Launcher pour sélectionner une image
+    // Image picker launcher
     val pickImageLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
-        onResult = { uri: Uri? -> selectedImageUri = uri }
+        onResult = { uri: Uri? ->
+            selectedImageUri = uri
+            uri?.let {
+                Log.d("AddImageScreen", "Image URI: $it")
+                // Process image file here if needed
+                val imageFile = uriToFile(it, context)
+                imageFile?.let { file ->
+                    Log.d("AddImageScreen", "File path: ${file.absolutePath}")
+                }
+            }
+        }
     )
 
-    // Extraction des extras de l'intent
-    val bundle = activity.intent.extras
-    if (bundle != null) {
-        val value = bundle.getString("key") // Remplacez "key" par la clé de votre extra
-        value?.let {
-            name = it // Utilisez cette valeur pour pré-remplir le champ
+    // Function to convert Uri to a File
+    fun uriToFile(uri: Uri, context: android.content.Context): File? {
+        val contentResolver = context.contentResolver
+        val inputStream: InputStream? = contentResolver.openInputStream(uri)
+        inputStream?.let {
+            // Create a temporary file
+            val tempFile = File(context.cacheDir, "temp_image.jpg")
+            try {
+                FileOutputStream(tempFile).use { outputStream ->
+                    it.copyTo(outputStream)
+                }
+                return tempFile
+            } catch (e: IOException) {
+                Log.e("AddImageScreen", "Error saving image", e)
+                errorMessage = "Error saving image: ${e.localizedMessage}"
+            } finally {
+                it.close()
+            }
         }
-    } else {
-        // Gestion de l'absence de l'extra dans l'intent
-        Log.d("AddImageScreen", "No extras found in intent.")
+        return null
     }
 
-    // Fonction pour ajouter un produit
-    fun addProduct() {
-        // Créer un objet produit avec les données saisies
-        val newProduct = Product(
-            name = name,
-            description = description,
-            location = location,
-            state = state,
-            category = selectedCategory,
-            imageUrl = selectedImageUri.toString() // Vous pouvez gérer l'image selon vos besoins
-        )
-
-        // Utiliser Retrofit pour appeler l'API et ajouter le produit
-        isLoading = true
-        errorMessage = null
-
-        // Effectuer l'appel API pour créer le produit
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val response = RetrofitClient.apiService.createProduct(newProduct)
-                if (response.isSuccessful) {
-                    // Succès
-                    onSubmit()
-                } else {
-                    // Erreur de la requête API
-                    errorMessage = "Failed to add product: ${response.message()}"
-                }
-            } catch (e: Exception) {
-                // Gestion des exceptions
-                errorMessage = "Error: ${e.localizedMessage}"
-            } finally {
-                isLoading = false
-            }
+    val imagePart = selectedImageUri?.let {
+        val imageFile = uriToFile(it, context)
+        imageFile?.let { file ->
+            val requestFile = file.asRequestBody("image/*".toMediaType())
+            MultipartBody.Part.createFormData("image", file.name, requestFile)
         }
     }
 
@@ -145,19 +138,7 @@ fun AddImageScreen(onSubmit: () -> Unit) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        val customTypography = TextStyle(
-            fontFamily = FontFamily.Default,
-            fontWeight = FontWeight.Bold,
-            fontSize = 24.sp // Taille de police du premier texte
-        )
-
-        val smallerTypography = TextStyle(
-            fontFamily = FontFamily.Default,
-            fontWeight = FontWeight.Normal,
-            fontSize = 16.sp // Taille de police plus petite pour le deuxième texte
-        )
-
-        // Affichage des messages d'erreur ou de chargement
+        // Handling loading and error states
         if (isLoading) {
             CircularProgressIndicator()
         }
@@ -166,25 +147,16 @@ fun AddImageScreen(onSubmit: () -> Unit) {
         }
 
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally, // Centre les textes horizontalement
+            horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(
-                text = "Donate Now!",
-                style = customTypography,
-                color = Color(0xFF1976D2),
-                modifier = Modifier.padding(bottom = 8.dp) // Espacement entre les deux textes
-            )
-            Text(
-                text = "Your donation will help us change the lives of those in need.",
-                style = smallerTypography, // Utilisation du style plus petit
-                color = Color.Black
-            )
+            Text(text = "Donate Now!", color = Color(0xFF1976D2), modifier = Modifier.padding(bottom = 8.dp))
+            Text(text = "Your donation will help us change the lives of those in need.", color = Color.Black)
         }
 
-        Spacer(modifier = Modifier.height(20.dp)) // Espace entre les sections
+        Spacer(modifier = Modifier.height(20.dp))
 
-        // Champs de saisie
+        // Input fields
         OutlinedTextField(
             value = name,
             onValueChange = { name = it },
@@ -220,10 +192,7 @@ fun AddImageScreen(onSubmit: () -> Unit) {
                 label = { Text("Category") },
                 readOnly = true,
                 trailingIcon = {
-                    Icon(
-                        imageVector = Icons.Filled.ArrowDropDown,
-                        contentDescription = null
-                    )
+                    Icon(imageVector = Icons.Filled.ArrowDropDown, contentDescription = null)
                 },
                 modifier = Modifier.fillMaxWidth().menuAnchor()
             )
@@ -242,6 +211,7 @@ fun AddImageScreen(onSubmit: () -> Unit) {
                 }
             }
         }
+
         Spacer(modifier = Modifier.height(15.dp))
 
         Button(
@@ -255,9 +225,7 @@ fun AddImageScreen(onSubmit: () -> Unit) {
             Image(
                 painter = rememberAsyncImagePainter(it),
                 contentDescription = "Selected Image",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp),
+                modifier = Modifier.fillMaxWidth().height(200.dp),
                 contentScale = ContentScale.Crop
             )
 
@@ -271,13 +239,60 @@ fun AddImageScreen(onSubmit: () -> Unit) {
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp)) // Espace entre les boutons
+        Spacer(modifier = Modifier.height(16.dp))
 
+        // Submit product
         Button(
-            onClick = { addProduct() },
+            onClick = {
+                if (name.isNotBlank() && description.isNotBlank() && location.isNotBlank() && state.isNotBlank() && selectedCategory.isNotBlank() && selectedImageUri != null) {
+                    // Appeler la fonction createProduct dans le ViewModel pour enregistrer le produit
+                    val imageFile = uriToFile(selectedImageUri!!, context)
+                    if (imageFile != null) {
+                        viewModel.createProduct(name, description, location, state, selectedCategory, imageFile)
+                    } else {
+                        errorMessage = "Failed to process the image"
+                    }
+                }
+            },
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Add Product")
         }
+
+        // Handle UI state changes
+        when (val uiState = viewModel.uiState.collectAsState().value) {
+            is ProductUiState.Loading -> {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+            }
+            is ProductUiState.ProductCreated -> {
+                Toast.makeText(LocalContext.current, "Product Created", Toast.LENGTH_SHORT).show()
+                onSubmit() // You can call onSubmit() if necessary
+            }
+            is ProductUiState.Error -> {
+                Toast.makeText(LocalContext.current, uiState.message, Toast.LENGTH_SHORT).show()
+            }
+            else -> {}
+        }
     }
+}
+
+fun uriToFile(uri: Uri, context: Context): File? {
+    val contentResolver = context.contentResolver
+    val inputStream: InputStream? = contentResolver.openInputStream(uri)
+
+    // Check if the input stream is valid
+    inputStream?.let {
+        val tempFile = File(context.cacheDir, "temp_image_${System.currentTimeMillis()}.jpg")
+
+        try {
+            FileOutputStream(tempFile).use { outputStream -> it.copyTo(outputStream) }
+            return tempFile
+        } catch (e: IOException) {
+            Log.e("AddImageScreen", "Error saving image: ${e.localizedMessage}")
+            return null
+        } finally {
+            it.close()
+        }
+    }
+    return null
 }

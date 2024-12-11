@@ -2,6 +2,7 @@ package com.example.myapplication11.view
 
 import ProductUiState
 import ProductViewModel
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,9 +61,15 @@ fun HomeScreen(navController: NavHostController) {
     val productViewModel: ProductViewModel = viewModel()
     val uiState by productViewModel.uiState.collectAsState()
     var query by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf("All") }  // Track selected category
 
     LaunchedEffect(Unit) {
         productViewModel.fetchProducts()
+    }
+
+    val onCategorySelected: (String) -> Unit = { category ->
+        selectedCategory = category  // Update the selected category
+        println("Category selected: $category")
     }
 
     Scaffold(
@@ -86,12 +93,13 @@ fun HomeScreen(navController: NavHostController) {
             ) {
                 GreetingSection()
                 SearchBar(query = query, onQueryChange = { query = it }, onSearch = { /* logiques de recherche ici */ })
-                CategorySection()
-                ProductSection(uiState)
+                CategorySection(onCategorySelected = onCategorySelected)
+                ProductSection(uiState, selectedCategory)  // Pass selected category here
             }
         }
     )
 }
+
 
 @Composable
 fun BottomNavigationBar(navController: NavHostController) {
@@ -153,26 +161,27 @@ fun SearchBar(query: String, onQueryChange: (String) -> Unit, onSearch: () -> Un
 }
 
 @Composable
-fun CategorySection() {
+fun CategorySection(onCategorySelected: (String) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        CategoryCard("All", Color(0xFFB39DDB), modifier = Modifier.weight(1f))
-        CategoryCard("Clothes", Color(0xFF81C784), modifier = Modifier.weight(1f))
-        CategoryCard("Education", Color(0xFF64B5F6), modifier = Modifier.weight(1f))
-        CategoryCard("Humanity", Color(0xFFFF8A65), modifier = Modifier.weight(1f))
+        CategoryCard("All", Color(0xFFB39DDB), modifier = Modifier.weight(1f), onClick = { onCategorySelected("All") })
+        CategoryCard("Clothes", Color(0xFF81C784), modifier = Modifier.weight(1f), onClick = { onCategorySelected("Clothes") })
+        CategoryCard("Education", Color(0xFF64B5F6), modifier = Modifier.weight(1f), onClick = { onCategorySelected("Education") })
+        CategoryCard("Humanity", Color(0xFFFF8A65), modifier = Modifier.weight(1f), onClick = { onCategorySelected("Humanity") })
     }
 }
 
 @Composable
-fun CategoryCard(text: String, color: Color, modifier: Modifier = Modifier) {
+fun CategoryCard(text: String, color: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Card(
         modifier = modifier
             .padding(8.dp)
-            .height(100.dp),
+            .height(100.dp)
+            .clickable { onClick() }, // Add click logic
         shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.cardColors(containerColor = color)
     ) {
@@ -194,7 +203,7 @@ fun CategoryCard(text: String, color: Color, modifier: Modifier = Modifier) {
 
 
 @Composable
-fun ProductSection(uiState: ProductUiState) {
+fun ProductSection(uiState: ProductUiState, selectedCategory: String) {
     when (uiState) {
         is ProductUiState.Loading -> {
             Text(
@@ -205,8 +214,13 @@ fun ProductSection(uiState: ProductUiState) {
             )
         }
         is ProductUiState.Success -> {
-            val products = uiState.produits
-            products.forEach { product ->
+            val filteredProducts = if (selectedCategory == "All") {
+                uiState.produits  // Show all products if "All" is selected
+            } else {
+                uiState.produits.filter { it.category == selectedCategory }  // Filter by selected category
+            }
+
+            filteredProducts.forEach { product ->
                 ProductCard(product)
             }
         }
@@ -223,7 +237,6 @@ fun ProductSection(uiState: ProductUiState) {
     }
 }
 
-
 @Composable
 fun ProductCard(product: Product) {
     Card(
@@ -237,7 +250,7 @@ fun ProductCard(product: Product) {
         Column(modifier = Modifier.padding(16.dp)) {
             product.imageUrl?.let { imageUrl ->
                 AsyncImage(
-                    model = "http://192.168.103.72:8080${imageUrl}", // Ajoutez le préfixe complet
+                    model = "http://192.168.1.145:8080${imageUrl}", // Ajoutez le préfixe complet
                     contentDescription = "Product Image",
                     modifier = Modifier
                         .fillMaxWidth()
